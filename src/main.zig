@@ -12,6 +12,7 @@ const errors = error{
 const CommandType = enum {
     Get,
     Set,
+    Exit,
 };
 const Command = struct {
     cmd_ty: CommandType,
@@ -28,21 +29,28 @@ const Command = struct {
                 .args = &[2][]const u8{ iter.next().?, iter.next().? },
             };
         }
+        if (std.mem.eql(u8, ty, "EXIT")) {
+            return Command{
+                .cmd_ty = CommandType.Exit,
+                .args = &[_][]const u8{},
+            };
+        }
         return errors.BadInput;
     }
 };
 
 fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !void {
+    defer conn.stream.close();
     while (true) {
         var user_input = try conn.stream.reader().readUntilDelimiterAlloc(allocator, '\n', std.math.maxInt(u64));
         user_input = user_input[0 .. user_input.len - 1];
         print("user input <{s}>\n", .{user_input});
         const command = try Command.init(user_input);
-        const arg1 = command.args[0];
-        print("command type is {}\n", .{command.cmd_ty});
-        print("command arg 1 is <{s}>\n", .{arg1});
         switch (command.cmd_ty) {
             .Get => {
+                const arg1 = command.args[0];
+                print("command type is {}\n", .{command.cmd_ty});
+                print("command arg 1 is <{s}>\n", .{arg1});
                 const value = store.get(arg1) orelse {
                     print("key {s} does not exists\n", .{arg1});
                     try conn.stream.writer().print("key {s} does not exists\n", .{arg1});
@@ -51,10 +59,16 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
                 try conn.stream.writer().print("{s}\n", .{value});
             },
             .Set => {
+                const arg1 = command.args[0];
+                print("command type is {}\n", .{command.cmd_ty});
+                print("command arg 1 is <{s}>\n", .{arg1});
                 const arg2 = command.args[1];
                 print("command arg 2 is {s}\n", .{arg2});
                 try store.put(arg1, arg2);
                 try conn.stream.writer().print("OK\n", .{});
+            },
+            .Exit => {
+                return;
             },
         }
     }
@@ -63,7 +77,7 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
 pub fn main() !void {
     const ip = "127.0.0.1"; //take this from user flags ?
     const port = 8080; //take this from user flags ?
-
+    print("{}", .{'\n'});
     // memory allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var allocator = gpa.allocator();
@@ -79,7 +93,6 @@ pub fn main() !void {
 
     while (true) {
         const connection = try server.accept();
-        defer connection.stream.close();
         try handle_connection(allocator, connection, &hm);
     }
 }
