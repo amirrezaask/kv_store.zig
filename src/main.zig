@@ -15,24 +15,36 @@ const CommandType = enum {
     Exit,
 };
 const Command = struct {
+    const GetPayload = struct {
+        key: []const u8,
+    };
+    const SetPayload = struct {
+        key: []const u8,
+        value: []const u8,
+    };
+    const Payload = union {
+        get: GetPayload,
+        set: SetPayload,
+    };
     cmd_ty: CommandType,
-    args: [][]const u8,
+    payload: Payload = undefined,
     pub fn init(input: []u8) !Command {
         var iter = std.mem.split(u8, input, " ");
         const ty = iter.next().?;
         if (std.mem.eql(u8, ty, "GET")) {
-            return Command{ .cmd_ty = CommandType.Get, .args = &[1][]const u8{iter.next().?} };
+            return Command{ .cmd_ty = CommandType.Get, .payload = .{ .get = .{
+                .key = iter.next().?,
+            } } };
         }
         if (std.mem.eql(u8, ty, "SET")) {
-            return Command{
-                .cmd_ty = CommandType.Set,
-                .args = &[2][]const u8{ iter.next().?, iter.next().? },
-            };
+            return Command{ .cmd_ty = CommandType.Set, .payload = .{ .set = .{
+                .key = iter.next().?,
+                .value = iter.next().?,
+            } } };
         }
         if (std.mem.eql(u8, ty, "EXIT")) {
             return Command{
                 .cmd_ty = CommandType.Exit,
-                .args = &[_][]const u8{},
             };
         }
         return errors.BadInput;
@@ -48,23 +60,14 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
         const command = try Command.init(user_input);
         switch (command.cmd_ty) {
             .Get => {
-                const arg1 = command.args[0];
-                // print("command type is {}\n", .{command.cmd_ty});
-                // print("command arg 1 is <{s}>\n", .{arg1});
-                const value = store.get(arg1) orelse {
-                    // print("key {s} does not exists\n", .{arg1});
-                    try conn.stream.writer().print("key {s} does not exists\n", .{arg1});
+                const value = store.get(command.payload.get.key) orelse {
+                    try conn.stream.writer().print("key {s} does not exists\n", .{command.payload.get.key});
                     continue;
                 };
                 try conn.stream.writer().print("{s}\n", .{value});
             },
             .Set => {
-                const arg1 = command.args[0];
-                // print("command type is {}\n", .{command.cmd_ty});
-                // print("command arg 1 is <{s}>\n", .{arg1});
-                const arg2 = command.args[1];
-                // print("command arg 2 is {s}\n", .{arg2});
-                try store.put(arg1, arg2);
+                try store.put(command.payload.set.key, command.payload.set.value);
                 try conn.stream.writer().print("OK\n", .{});
             },
             .Exit => {
@@ -77,7 +80,7 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
 pub fn main() !void {
     const ip = "127.0.0.1"; //take this from user flags ?
     const port = 8080; //take this from user flags ?
-    print("{}", .{'\n'});
+
     // memory allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var allocator = gpa.allocator();
@@ -93,6 +96,9 @@ pub fn main() !void {
 
     while (true) {
         const connection = try server.accept();
-        try handle_connection(allocator, connection, &hm);
+        print("client connected", .{});
+        handle_connection(allocator, connection, &hm) catch |err| {
+            std.log.warn("client conneciton closed: {}", .{err});
+        };
     }
 }
