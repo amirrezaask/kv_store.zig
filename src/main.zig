@@ -43,16 +43,16 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
     defer conn.stream.close();
     while (true) {
         var user_input = try conn.stream.reader().readUntilDelimiterAlloc(allocator, '\n', std.math.maxInt(u64));
+        // handle \r since in telnet <enter> do \r\n
         user_input = user_input[0 .. user_input.len - 1];
-        print("user input <{s}>\n", .{user_input});
         const command = try Command.init(user_input);
         switch (command.cmd_ty) {
             .Get => {
                 const arg1 = command.args[0];
-                print("command type is {}\n", .{command.cmd_ty});
-                print("command arg 1 is <{s}>\n", .{arg1});
+                // print("command type is {}\n", .{command.cmd_ty});
+                // print("command arg 1 is <{s}>\n", .{arg1});
                 const value = store.get(arg1) orelse {
-                    print("key {s} does not exists\n", .{arg1});
+                    // print("key {s} does not exists\n", .{arg1});
                     try conn.stream.writer().print("key {s} does not exists\n", .{arg1});
                     continue;
                 };
@@ -60,10 +60,10 @@ fn handle_connection(allocator: Allocator, conn: Connection, store: *HashMap) !v
             },
             .Set => {
                 const arg1 = command.args[0];
-                print("command type is {}\n", .{command.cmd_ty});
-                print("command arg 1 is <{s}>\n", .{arg1});
+                // print("command type is {}\n", .{command.cmd_ty});
+                // print("command arg 1 is <{s}>\n", .{arg1});
                 const arg2 = command.args[1];
-                print("command arg 2 is {s}\n", .{arg2});
+                // print("command arg 2 is {s}\n", .{arg2});
                 try store.put(arg1, arg2);
                 try conn.stream.writer().print("OK\n", .{});
             },
