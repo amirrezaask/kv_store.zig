@@ -13,7 +13,7 @@ const Allocator = std.mem.Allocator;
 pub const io_mode = .evented;
 
 const Client = struct {
-    frame: @Frame(handle) = undefined,
+    frame: @Frame(handle),
     stream: Stream,
     store: *HashMap,
     allocator: Allocator,
@@ -46,9 +46,10 @@ const Client = struct {
         }
     }
 };
+
 pub fn main() !void {
-    const ip = "127.0.0.1"; //take this from user flags ?
-    const port = 0; //take this from user flags ?
+    const ip = "127.0.0.1";
+    const port = 0;
     print("Async mode is {}\n", .{std.io.is_async});
     // memory allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
